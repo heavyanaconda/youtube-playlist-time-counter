@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Playlist Time Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      font-size: 16px;
+    }
+    .results {
+      margin-top: 20px;
+      font-size: 18px;
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>YouTube Playlist Time Calculator</h1>
+  <div>
+    <label for="playlistId">Enter Playlist URL:</label>
+    <input type="text" id="playlistUrl" placeholder="Playlist URL">
+    <button onclick="calculateTime()">Calculate</button>
+  </div>
+
+  <div id="results" class="results" style="display: none;">
+    <p><strong>Total Duration:</strong> <span id="totalDuration"></span></p>
+    <p><strong>Normal Speed:</strong> <span id="normalTime"></span></p>
+    <p><strong>1.25x Speed:</strong> <span id="speed1_25x"></span></p>
+    <p><strong>1.5x Speed:</strong> <span id="speed1_5x"></span></p>
+    <p><strong>1.75x Speed:</strong> <span id="speed1_75x"></span></p>
+    <p><strong>2x Speed:</strong> <span id="speed2x"></span></p>
+  </div>
+
+  <script>
+    const apiKey = 'AIzaSyBFUiEXsn3B--SWhe3C4ws8fvBhAxPZnLs';  // Replace with your YouTube Data API key
+
+    // Function to extract Playlist ID from YouTube URL
+    function extractPlaylistId(url) {
+      const regex = /[?&]list=([a-zA-Z0-9_-]+)/;
+      const match = url.match(regex);
+      return match ? match[1] : null;
+    }
+
+    // Fetch playlist data with pagination support
+    async function fetchPlaylistData(playlistId) {
+      let totalSeconds = 0;
+      let nextPageToken = null;
+      try {
+        do {
+          const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${playlistId}&maxResults=50&key=${apiKey}&pageToken=${nextPageToken || ''}`;
+          const response = await fetch(url);
+          const data = await response.json();
+
+          if (data.error) {
+            alert('API error: ' + data.error.message);
+            return;
+          }
+
+          for (const item of data.items) {
+            const videoId = item.contentDetails.videoId;
+            const videoDetails = await fetchVideoDuration(videoId);
+            totalSeconds += videoDetails;
+          }
+
+          nextPageToken = data.nextPageToken;  // Get the nextPageToken if available
+        } while (nextPageToken);  // Continue until there are no more pages
+      } catch (error) {
+        alert('An error occurred while fetching data: ' + error.message);
+      }
+      return totalSeconds;
+    }
+
+    // Fetch video duration
+    async function fetchVideoDuration(videoId) {
+      try {
+        const url = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoId}&key=${apiKey}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        const duration = data.items[0].contentDetails.duration;
+        
+        // Convert ISO 8601 duration to seconds
+        return iso8601ToSeconds(duration);
+      } catch (error) {
+        console.error('Error fetching video duration:', error);
+        return 0;  // If there's an error, return 0 seconds for that video
+      }
+    }
+
+    // Convert ISO 8601 duration format to total seconds
+    function iso8601ToSeconds(duration) {
+      const regex = /PT(\d+H)?(\d+M)?(\d+S)?/;
+      const matches = duration.match(regex);
+      let hours = parseInt(matches[1], 10) || 0;
+      let minutes = parseInt(matches[2], 10) || 0;
+      let seconds = parseInt(matches[3], 10) || 0;
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    // Format seconds into hh:mm:ss format
+    function formatTime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const remainingSeconds = seconds % 60;
+      return `${hours}h ${minutes}m ${remainingSeconds}s`;
+    }
+
+    // Calculate total time for playlist
+    async function calculateTime() {
+      const playlistUrl = document.getElementById('playlistUrl').value;
+      if (!playlistUrl) {
+        alert('Please enter a playlist URL');
+        return;
+      }
+
+      // Extract playlist ID from URL
+      const playlistId = extractPlaylistId(playlistUrl);
+      if (!playlistId) {
+        alert('Invalid YouTube playlist URL');
+        return;
+      }
+
+      const totalSeconds = await fetchPlaylistData(playlistId);
+      if (totalSeconds === 0) {
+        alert('Could not fetch playlist duration. Please try again later.');
+        return;
+      }
+
+      const totalDuration = formatTime(totalSeconds);
+      
+      const normalTime = formatTime(totalSeconds);
+      const speed1_25x = formatTime(totalSeconds / 1.25);
+      const speed1_5x = formatTime(totalSeconds / 1.5);
+      const speed1_75x = formatTime(totalSeconds / 1.75);
+      const speed2x = formatTime(totalSeconds / 2);
+
+      // Display results
+      document.getElementById('results').style.display = 'block';
+      document.getElementById('totalDuration').textContent = totalDuration;
+      document.getElementById('normalTime').textContent = normalTime;
+      document.getElementById('speed1_25x').textContent = speed1_25x;
+      document.getElementById('speed1_5x').textContent = speed1_5x;
+      document.getElementById('speed1_75x').textContent = speed1_75x;
+      document.getElementById('speed2x').textContent = speed2x;
+    }
+  </script>
+</body>
+</html>
+
